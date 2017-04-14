@@ -20,9 +20,9 @@ Barriers::PreDefined - A class to calculate a series of predefined barriers for 
     use Barriers::PreDefined;
     my $barrier_class = Barriers::PreDefined->new(config => $config);
     my $available_barriers = $barrier_class->calculate_available_barriers({
-                             contract_type => $contract_type, 
-                             duration      => $duration, 
-                             central_spot  => $central_spot, 
+                             contract_type => $contract_type,
+                             duration      => $duration,
+                             central_spot  => $central_spot,
                              display_decimal => $display_decimal,
                              method          => $method});
 
@@ -52,7 +52,7 @@ Steps:
    Barrier_9 (labeled as 95) : central_spot + 45 * m
 
 4) Apply the barriers for each contract types as defined in the config file:
-   Example: 
+   Example:
    - Single_barrier_european_option: [95, 85, 75, 62, 50, 38, 25, 15, 5]
    - Single_barrier_american_option: [95, 85, 75, 62, 38, 25, 15, 5]
    - Double_barrier_european_option: [75, 95, 62, 85, 50, 75, 38, 62, 25, 50, 15, 38, 5, 25],
@@ -90,7 +90,7 @@ Steps:
    New_barrier_9 (labeled as 5)  : min( round(barrier_9/m) * m, new_barrier_8 - m )
 
 6) Apply the barriers for each contract types as defined in config file:
-   Example: 
+   Example:
    - Single_barrier_european_option: [95, 78, 68, 57, 50, 43, 32, 22, 5]
    - Single_barrier_american_option: [95, 78, 68, 57, 43, 32, 22, 5]
    - Double_barrier_european_option: [68, 95, 57, 78, 50, 68, 43, 57, 32, 50, 22, 43, 5, 32],
@@ -130,13 +130,13 @@ The method for the barrier calculation, method_1 or method_2
 
 A set of barrier level that intended to obtain for a contract type
 
-Example: 
+Example:
    - Single_barrier_european_option: [95, 78, 68, 57, 50, 43, 32, 22, 5]
    - Single_barrier_american_option: [95, 78, 68, 57, 43, 32, 22, 5]
    - Double_barrier_european_option: [68, 95, 57, 78, 50, 68, 43, 57, 32, 50, 22, 43, 5, 32],
    - Double_barrier_american_option: [32, 68, 22, 78, 5, 95]
 
-The barrier level 78 is 28 * min_barrier_interval from the central spot, while 22 is -28 * min_barrier_interval from the central spot. 
+The barrier level 78 is 28 * min_barrier_interval from the central spot, while 22 is -28 * min_barrier_interval from the central spot.
 
 =cut
 
@@ -182,25 +182,22 @@ Input_parameters: $contract_type, $duration, $central_spot, $display_decimal, $m
 =cut
 
 sub calculate_available_barriers {
-    my $self = shift;
-    my $args = shift;
+    my ($self, $args) = @_;
 
     my ($contract_type, $duration, $central_spot, $display_decimal, $method) =
         @{$args}{qw(contract_type duration central_spot display_decimal method)};
+
     my $barriers_levels = $self->_contract_barrier_levels->{$contract_type};
-    my $barriers_calculation_args = {
-        duration        => $duration,
-        central_spot    => $central_spot,
-        display_decimal => $display_decimal,
-        barriers_levels => $barriers_levels
-    };
-    my $barriers_list =
-        $method == 1 ? $self->calculate_method_1($barriers_calculation_args) : $self->calculate_method_2($barriers_calculation_args);
-
     my $format  =  '%.' . $display_decimal . 'f';
-    my $available_barriers = [map { sprintf $format, $barriers_list->{$_} } @{$barriers_levels}];
 
-    return $available_barriers;
+    my $calculate_method = $method eq '1' ? \&_calculate_method_1 : \&_calculate_method_2;
+    my $barriers_list = $calculate_method->($central_spot, $format, $duration, $barriers_levels);
+
+    my @pipsized_barriers = map { sprintf $format, $_ } @$barriers_list;
+    return \@pipsized_barriers;
+    #my $available_barriers = [map { sprintf $format, $barriers_list->{$_} } @{$barriers_levels}];
+
+    #return $available_barriers;
 }
 
 =head2 calculate_method_1
@@ -210,21 +207,23 @@ Input_parameters: $duration, $central_spot, $display_decimal, $barriers_levels
 
 =cut
 
-sub _build_calculate_method_1 {
-    my $self =shift;
-    my $args = shift;
+sub _calculate_method_1 {
+    my ($central_spot, $format, $duration, $barriers_levels) = @_;
 
-    my ($duration, $central_spot, $display_decimal, $barriers_levels) = @{$args}{qw(duration central_spot display_decimal barriers_levels)};
     my $tiy = $duration / (365 * 86400);
     my @initial_barriers            = map { _get_barrier_from_call_bs_price($_, $tiy, $central_spot, 0.1) } (0.05, 0.95);
     my $distance_between_boundaries = abs($initial_barriers[0] - $initial_barriers[1]);
-    my $minimum_step                = sprintf '%.' . $display_decimal . 'f', ($distance_between_boundaries / 90);
-    my @steps                       = uniq(map { abs(50 - $_) } @{$barriers_levels});
 
-    my %new_barriers = map { (50 - $_ => $central_spot - $_ * $minimum_step, 50 + $_ => $central_spot + $_ * $minimum_step) } @steps;
+    # Why we double-pipsiing it??? Who invented that?
+    # Now we must keep that for backward-compatibility
+    my $share = sprintf($format, $distance_between_boundaries / 90);
 
-    return \%new_barriers;
+    my @barriers = map { $central_spot + $share * ($_ - 50) } @$barriers_levels;
+    return \@barriers;
+}
 
+sub _calculate_method_2 {
+    ...;
 }
 
 =head2 calculate_method_2

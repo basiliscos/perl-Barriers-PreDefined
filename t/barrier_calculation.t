@@ -2,10 +2,12 @@
 
 use strict;
 use warnings;
+
 use Test::More (tests => 2);
 use Test::Deep;
 use Test::FailWarnings;
 use Barriers::PreDefined;
+
 my $method_2_config = [
             {
                 types         => [qw/CALLE PUT/],
@@ -52,13 +54,13 @@ subtest 'get_avilable_barrier_method_1' => sub {
 
     my $calculation_class = Barriers::PreDefined->new(config        => $method_1_config);
     my $available_barriers = $calculation_class->calculate_available_barriers({
-                             contract_type => 'CALLE', 
-                             duration      => 2 *60*60, 
-                             central_spot  => 100, 
+                             contract_type => 'CALLE',
+                             duration      => 2 *60*60,
+                             central_spot  => 100,
                              display_decimal => 2,
                              method          => 1});
     my $expected_barriers = ['100.27', '100.21', '100.15', '100.09' ,'100.00', '99.91', '99.85', '99.79', '99.73'];
 
-    cmp_bag($available_barriers, $expected_barriers, 'available_barriers_match_for_method_1'); 
-
+    is_deeply($available_barriers , $expected_barriers);
+    #cmp_bag($available_barriers, $expected_barriers, 'available_barriers_match_for_method_1');
 }
